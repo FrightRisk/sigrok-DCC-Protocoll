@@ -104,6 +104,8 @@ class Decoder(srd.Decoder):
           return;        
         l = len(d);
 
+        cv_addr = 0
+        cv_op = None
         idx = 0
         id = d[idx][0]
         if (id == 0):
@@ -163,7 +165,21 @@ class Decoder(srd.Decoder):
                   value = value >> 1
                   self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, [out]])
         elif (id >= 112 and id <=127):
-            self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, ["Service Mode"]])
+            cv_op = (id >> 2) & 3
+            cv_op_str = "Unknown service op"
+            if cv_op == 1:
+                cv_op_str = "Verify byte"
+            elif cv_op == 2 and l > idx + 2:
+                if d[idx + 2][0] & 0x10:
+                    cv_op_str = "Write bit"
+                else:
+                    cv_op_str = "Verify bit"
+            elif cv_op == 3:
+                cv_op_str = "Write byte"
+
+            self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, [cv_op_str]])
+            cv_addr = (id & 3) << 8
+            idx += 1
         elif (id >= 128 and id <=191):
             # Accessory
             if (d[idx + 1][0] & 128 == 0):
@@ -205,6 +221,19 @@ class Decoder(srd.Decoder):
               out = "CHECK: " + str(checksum) + "/" + str(d[l-1][0])
             self.put(d[l - 1][1][0], d[l - 1][1][8], self.out_ann, [1, [out]])
             l -= 1
+
+        if cv_addr is not None and l > 2:
+            self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, ["CV " + str(1 + cv_addr + d[idx][0])]])
+            idx += 1
+            if (id >> 2) & 3 == 2:
+                # Bit manipulation
+                cv_value = "%d @ 0x%02x" % ((d[idx][0] >> 3) & 1, 1 << (d[idx][0] & 7))
+            else:
+                cv_value = "0x%02x (%d)" % (d[idx][0], d[idx][0])
+
+            self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, [cv_value]])
+            idx += 1
+
         for x in range(idx + 1, l):
             self.put(d[x][1][0], d[x][1][8], self.out_ann, [1, ["?: " + str(d[x][0])]])
           
