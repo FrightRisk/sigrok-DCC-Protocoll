@@ -179,7 +179,6 @@ class Decoder(srd.Decoder):
 
             self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, [cv_op_str]])
             cv_addr = (id & 3) << 8
-            idx += 1
         elif (id >= 128 and id <=191):
             # Accessory
             if (d[idx + 1][0] & 128 == 0):
@@ -223,6 +222,7 @@ class Decoder(srd.Decoder):
             l -= 1
 
         if cv_addr is not None and l > 2:
+            idx += 1
             self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, ["CV " + str(1 + cv_addr + d[idx][0])]])
             idx += 1
             if (id >> 2) & 3 == 2:
@@ -232,7 +232,10 @@ class Decoder(srd.Decoder):
                 cv_value = "0x%02x (%d)" % (d[idx][0], d[idx][0])
 
             self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, [cv_value]])
+
+        if id == 0 and idx == 0 and d[idx + 1][0] == 0:
             idx += 1
+            self.put(d[idx][1][0], d[idx][1][8], self.out_ann, [1, ["Decoder Reset"]])
 
         for x in range(idx + 1, l):
             self.put(d[x][1][0], d[x][1][8], self.out_ann, [1, ["?: " + str(d[x][0])]])
